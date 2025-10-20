@@ -21,7 +21,7 @@ wheels/
 *.egg
 MANIFEST
 
-# Virtual environments
+# Virtual Environment
 venv/
 env/
 ENV/
@@ -51,19 +51,43 @@ logs/
 # Temporary files
 *.tmp
 *.temp
+temp/
+tmp/
 
-# Test photos (if they contain personal data)
-test_photos/
-*.jpg
-*.jpeg
-*.png
-*.bmp
-*.tiff
-*.webp
+# Test files
+test_*.html
+test_*.py
+*_test.py
+test_*/
 
-# But keep the project structure
-!static/
-!requirements.txt
-!main.py
-!cluster_simple.py
+# Documentation
+*.md
 !README.md
+
+# Model files (large)
+*.onnx
+*.pkl
+*.model
+
+# Cache
+.cache/
+*.cache
+
+# Node modules (if any)
+node_modules/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Backup files
+*.bak
+*.backup

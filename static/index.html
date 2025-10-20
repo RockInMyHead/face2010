@@ -91,6 +91,17 @@
             transition: all 0.3s ease;
             font-weight: 500;
             text-align: left;
+            height: 45px;
+        }
+        
+        .drive-btn {
+            width: 150px;
+            height: 150px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
         }
 
         .drive-btn:hover, .folder-btn:hover, .action-btn:hover {
@@ -103,6 +114,7 @@
             color: #333;
             border: 1px solid #ddd;
             width: 150px;
+            height: 150px;
             margin-bottom: 5px;
             padding: 8px 12px;
             font-size: 0.9rem;
@@ -169,20 +181,25 @@
         /* Стили для превью изображений */
         .thumbnail {
             width: 150px;
+            height: 150px;
             text-align: center;
             background: white;
             border-radius: 8px;
             padding: 8px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             transition: transform 0.2s ease, box-shadow 0.2s ease;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
         }
         .thumbnail:hover {
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
         .thumbnail img {
-            width: 150px;
-            height: 150px;
+            width: 134px;
+            height: 134px;
             object-fit: cover;
             border-radius: 6px;
             pointer-events: none;
@@ -694,6 +711,7 @@
             align-items: center;
             gap: 6px;
             border: 1px solid #e0e0e0;
+            height: 45px;
         }
 
         .toolbar-btn:hover {
@@ -742,11 +760,12 @@
 
             .thumbnail {
                 width: 130px;
+                height: 130px;
             }
 
             .thumbnail img {
-                width: 120px;
-                height: 120px;
+                width: 114px;
+                height: 114px;
             }
         }
     </style>
@@ -774,9 +793,6 @@
                     <div class="file-toolbar" id="fileToolbar" style="display: none;">
                         <button class="toolbar-btn" id="newFolderBtn">
                             <span>📁</span> Новая папка
-                        </button>
-                        <button class="toolbar-btn" id="refreshBtn">
-                            <span>🔄</span> Обновить
                         </button>
                     </div>
 

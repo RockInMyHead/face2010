@@ -12,6 +12,7 @@ class PhotoClusterApp {
         this.setupEventListeners();
         this.loadInitialData();
         this.startTaskPolling();
+        this.startFolderPolling();
     }
 
     initializeElements() {
@@ -33,7 +34,6 @@ class PhotoClusterApp {
         // Элементы управления файлами
         this.fileToolbar = document.getElementById('fileToolbar');
         this.newFolderBtn = document.getElementById('newFolderBtn');
-        this.refreshBtn = document.getElementById('refreshBtn');
         this.contextMenu = document.getElementById('contextMenu');
         this.createFolderModal = document.getElementById('createFolderModal');
         this.renameModal = document.getElementById('renameModal');
@@ -92,7 +92,6 @@ class PhotoClusterApp {
         
         // Кнопки управления файлами
         this.newFolderBtn.addEventListener('click', () => this.openCreateFolderModal());
-        this.refreshBtn.addEventListener('click', () => this.refreshCurrentFolder());
         
         // Контекстное меню
         this.contextMenu.addEventListener('click', (e) => {
@@ -141,24 +140,14 @@ class PhotoClusterApp {
             this.renameItem();
         });
         this.includeExcludedBtn.addEventListener('click', async () => {
-            // Кнопка "Общие" всегда запускает обработку с includeExcluded=true
-            console.log('🔍 Кнопка "Общие" нажата - запускаем обработку общих фото');
-            
-            // Временно устанавливаем includeExcluded в true
-            const previousValue = this.includeExcluded;
-            this.includeExcluded = true;
+            // Кнопка "Общие" - специальный алгоритм для общих фотографий
+            console.log('🔍 Кнопка "Общие" нажата - запускаем специальный алгоритм для общих фото');
             
             try {
-                // Добавляем папки 'Общие' в очередь
-                console.log('🔍 Добавляем исключенные папки в очередь...');
-                await this.addExcludedFoldersToQueue();
-                
-                // Запускаем обработку очереди с includeExcluded=true
-                console.log('🔍 Запускаем processQueue с includeExcluded=true');
-                await this.processQueue();
-            } finally {
-                // Возвращаем предыдущее значение
-                this.includeExcluded = previousValue;
+                await this.processCommonPhotosAlgorithm();
+            } catch (error) {
+                console.error('❌ Ошибка при обработке общих фото:', error);
+                this.showNotification('Ошибка при обработке общих фото: ' + error.message, 'error');
             }
         });
         // Кнопка добавить в очередь
@@ -501,6 +490,157 @@ class PhotoClusterApp {
         this.fileInput.value = '';
     }
 
+    async processCommonPhotosAlgorithm() {
+        try {
+            // Используем initialPath для поиска общих папок
+            const rootPath = this.initialPath || this.currentPath;
+            if (!rootPath) {
+                this.showNotification('Сначала выберите корневую папку для поиска "Общие"', 'error');
+                return;
+            }
+
+            console.log('🔍 Ищем общие папки в:', rootPath);
+            
+            // Ищем все общие папки рекурсивно
+            const commonFolders = await this.findCommonFoldersRecursive(rootPath);
+            
+            if (commonFolders.length === 0) {
+                this.showNotification('Общие папки не найдены', 'error');
+                return;
+            }
+
+            console.log('📁 Найдено общих папок:', commonFolders.length);
+            
+            // Показываем уведомление о начале обработки
+            this.showNotification(`Найдено ${commonFolders.length} общих папок. Добавляем в очередь...`, 'success');
+            
+            // Добавляем все общие папки в очередь с флагом includeExcluded
+            let addedCount = 0;
+            for (const folderPath of commonFolders) {
+                try {
+                    console.log('🔍 Добавляем в очередь:', folderPath);
+                    const result = await this.addToQueueDirect(folderPath, true);
+                    console.log('✅ Добавлена в очередь:', folderPath, result);
+                    addedCount++;
+                } catch (error) {
+                    console.error('❌ Ошибка добавления в очередь:', folderPath, error);
+                }
+            }
+            
+            console.log(`📊 Добавлено в очередь: ${addedCount} из ${commonFolders.length} папок`);
+            
+            if (addedCount === 0) {
+                this.showNotification('Не удалось добавить ни одной папки в очередь', 'error');
+                return;
+            }
+            
+            // Запускаем обработку очереди
+            console.log('🚀 Запускаем обработку очереди...');
+            await this.processQueueWithExcluded();
+            
+        } catch (error) {
+            console.error('❌ Ошибка при обработке общих фото:', error);
+            this.showNotification('Ошибка при обработке общих фото: ' + error.message, 'error');
+        }
+    }
+
+    async findCommonFoldersRecursive(rootPath, depth = 0, maxDepth = 3, visitedPaths = new Set()) {
+        const commonFolders = [];
+        const excludedNames = ["общие", "общая", "common", "shared", "все", "all", "mixed", "смешанные"];
+        
+        // Проверяем, не посещали ли мы уже этот путь
+        if (visitedPaths.has(rootPath)) {
+            console.log('⚠️ Пропускаем уже посещенный путь:', rootPath);
+            return commonFolders;
+        }
+        visitedPaths.add(rootPath);
+        
+        // Ограничиваем глубину поиска
+        if (depth > maxDepth) {
+            console.log('⚠️ Достигнута максимальная глубина поиска:', depth);
+            return commonFolders;
+        }
+        
+        // Список системных папок, которые нужно пропустить
+        const systemFolders = [
+            '/Applications', '/bin', '/sbin', '/usr', '/var', '/System', '/Library',
+            '/private', '/etc', '/tmp', '/opt', '/home', '/root', '/dev', '/proc',
+            '/sys', '/mnt', '/media', '/run', '/lost+found', '/Users/Shared'
+        ];
+        
+        // Проверяем, не пытаемся ли мы получить доступ к системной папке
+        if (systemFolders.some(sysPath => rootPath.startsWith(sysPath))) {
+            console.log('⚠️ Пропускаем системную папку:', rootPath);
+            return commonFolders;
+        }
+        
+        // Ограничиваем поиск только в выбранной пользователем папке
+        const userSelectedPath = this.initialPath || this.currentPath;
+        if (!rootPath.startsWith(userSelectedPath)) {
+            console.log('⚠️ Пропускаем папку вне выбранной области:', rootPath);
+            return commonFolders;
+        }
+        
+        console.log(`🔍 Поиск на глубине ${depth}: ${rootPath}`);
+        
+        try {
+            const response = await fetch(`/api/folder?path=${encodeURIComponent(rootPath)}&_ts=${Date.now()}`, { cache: 'no-store' });
+            
+            if (!response.ok) {
+                console.log('⚠️ Не удалось получить доступ к папке:', rootPath, 'Статус:', response.status);
+                return commonFolders;
+            }
+            
+            const data = await response.json();
+            
+            if (!data.contents) return commonFolders;
+            
+            // Проверяем текущий уровень
+            for (const item of data.contents) {
+                if (item.is_directory) {
+                    const folderName = item.name.replace('📂 ', '');
+                    const folderNameLower = folderName.toLowerCase();
+                    
+                    // Пропускаем системные папки
+                    if (systemFolders.some(sysPath => item.path.startsWith(sysPath))) {
+                        continue;
+                    }
+                    
+                    for (const excludedName of excludedNames) {
+                        if (folderNameLower.includes(excludedName)) {
+                            commonFolders.push(item.path);
+                            console.log('✅ Найдена общая папка:', item.path);
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            // Рекурсивно ищем в подпапках (только в безопасных папках)
+            for (const item of data.contents) {
+                if (item.is_directory) {
+                    // Пропускаем системные папки при рекурсивном поиске
+                    if (systemFolders.some(sysPath => item.path.startsWith(sysPath))) {
+                        continue;
+                    }
+                    
+                    try {
+                        const subFolders = await this.findCommonFoldersRecursive(item.path, depth + 1, maxDepth, visitedPaths);
+                        commonFolders.push(...subFolders);
+                    } catch (error) {
+                        console.log('⚠️ Ошибка при рекурсивном поиске в:', item.path, error.message);
+                        // Продолжаем поиск в других папках
+                    }
+                }
+            }
+            
+        } catch (error) {
+            console.error('Ошибка при поиске общих папок:', error);
+        }
+        
+        return commonFolders;
+    }
+
     async addExcludedFoldersToQueue() {
         try {
             // Используем initialPath для поиска общих папок
@@ -709,6 +849,56 @@ class PhotoClusterApp {
         }
     }
 
+    async processQueueWithExcluded() {
+        console.log('🔍 [processQueueWithExcluded] Начало обработки очереди с включенными исключениями');
+        
+        try {
+            console.log('🔍 [processQueueWithExcluded] Отключаем кнопку и показываем загрузку');
+            this.processBtn.disabled = true;
+            this.processBtn.innerHTML = '<div class="loading"></div> Запуск...';
+
+            // Обновляем очередь перед запуском
+            console.log('🔍 [processQueueWithExcluded] Обновляем очередь...');
+            await this.loadQueue();
+            console.log('🔍 [processQueueWithExcluded] Текущая очередь:', this.queue);
+            
+            if (!this.queue || this.queue.length === 0) {
+                console.log('❌ [processQueueWithExcluded] Очередь пуста');
+                this.showNotification('Очередь пуста. Добавьте папки перед запуском.', 'error');
+                return;
+            }
+
+            const url = '/api/process?includeExcluded=true';
+            console.log(`🔍 [processQueueWithExcluded] Отправляем запрос: ${url}`);
+            
+            const response = await fetch(url, { method: 'POST', cache: 'no-store' });
+            console.log('🔍 [processQueueWithExcluded] Статус ответа:', response.status, response.statusText);
+            
+            const result = await response.json();
+            console.log('🔍 [processQueueWithExcluded] Ответ сервера:', result);
+            
+            if (!response.ok) {
+                console.error('❌ [processQueueWithExcluded] Ошибка сервера:', result);
+                this.showNotification(result.detail || result.message || 'Ошибка при запуске обработки', 'error');
+                return;
+            }
+            
+            console.log('✅ [processQueueWithExcluded] Обработка запущена успешно');
+            this.showNotification(result.message, 'success');
+            
+            console.log('🔍 [processQueueWithExcluded] Обновляем очередь после запуска...');
+            await this.loadQueue();
+            
+        } catch (error) {
+            console.error('❌ [processQueueWithExcluded] Ошибка:', error);
+            this.showNotification('Ошибка запуска обработки: ' + error.message, 'error');
+        } finally {
+            console.log('🔍 [processQueueWithExcluded] Восстанавливаем кнопку');
+            this.processBtn.disabled = false;
+            this.processBtn.innerHTML = '🚀 Обработать очередь';
+        }
+    }
+
     async clearQueue() {
         try {
             const response = await fetch('/api/queue', {
@@ -817,9 +1007,19 @@ class PhotoClusterApp {
                 `;
             }
 
+            // Получаем имя задачи из разных возможных полей
+            let taskName = task.folder_path || task.path || task.name || 'Неизвестная задача';
+            
+            // Улучшаем отображение имени папки
+            if (taskName && taskName.includes('/')) {
+                // Показываем только имя папки, а не полный путь
+                const pathParts = taskName.split('/');
+                taskName = pathParts[pathParts.length - 1] || taskName;
+            }
+            
             taskEl.innerHTML = `
                 <div class="task-header">
-                    <span>${statusEmoji[task.status]} ${task.path}</span>
+                    <span>${statusEmoji[task.status]} ${taskName}</span>
                     <button class="task-close" data-task-id="${task.id}">×</button>
                 </div>
                 ${progressHtml}
@@ -831,8 +1031,19 @@ class PhotoClusterApp {
 
     async startTaskPolling() {
         setInterval(async () => {
+            console.log('🔄 Автообновление задач (5s)...');
             await this.loadTasks();
-        }, 1000); // Проверять каждую секунду
+        }, 5000); // Проверять каждые 5 секунд
+    }
+
+    async startFolderPolling() {
+        setInterval(async () => {
+            // Автоматически обновляем содержимое папки каждые 5 секунд
+            if (this.currentPath) {
+                console.log('🔄 Автообновление папки (5s):', this.currentPath);
+                await this.navigateToFolder(this.currentPath);
+            }
+        }, 5000); // Обновлять каждые 5 секунд
     }
 
 

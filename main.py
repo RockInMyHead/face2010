@@ -78,6 +78,10 @@ class MoveItem(BaseModel):
     src: str
     dest: str
 
+class ProcessCommonPhotosRequest(BaseModel):
+    rootPath: str
+    commonFolders: List[str]
+
 # Утилиты
 def cleanup_old_tasks():
     """Удалить старые завершенные задачи (старше 5 минут)"""
@@ -759,6 +763,104 @@ async def delete_item(path: str = Query(...)):
             return {"message": f"✅ Файл '{item_path.name}' удален", "path": str(item_path)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка удаления: {str(e)}")
+
+@app.post("/api/process-common-photos")
+async def process_common_photos(request: ProcessCommonPhotosRequest):
+    """Специальный алгоритм для обработки общих фотографий"""
+    try:
+        root_path = request.rootPath
+        common_folders = request.commonFolders
+        
+        if not root_path:
+            raise HTTPException(status_code=400, detail="Не указан корневой путь")
+        
+        if not common_folders:
+            raise HTTPException(status_code=400, detail="Не найдены общие папки")
+        
+        print(f"🔍 [API] Обработка общих фотографий: {len(common_folders)} папок")
+        
+        # Собираем все уникальные кластеры из всех общих папок
+        all_unique_clusters = set()
+        processed_folders = 0
+        
+        for common_folder in common_folders:
+            try:
+                print(f"🔍 [API] Обрабатываем папку: {common_folder}")
+                
+                # Проверяем, что папка существует
+                folder_path = Path(common_folder)
+                if not folder_path.exists():
+                    print(f"⚠️ [API] Папка не существует: {common_folder}")
+                    continue
+                
+                # Проверяем, что в папке есть изображения
+                image_files = list(folder_path.glob("*.jpg")) + list(folder_path.glob("*.jpeg")) + list(folder_path.glob("*.png"))
+                if not image_files:
+                    print(f"⚠️ [API] В папке нет изображений: {common_folder}")
+                    continue
+                
+                print(f"📸 [API] Найдено изображений: {len(image_files)}")
+                
+                # Кластеризуем общую папку
+                plan = build_plan_advanced(
+                    input_dir=folder_path,
+                    progress_callback=None,
+                    sim_threshold=0.60,
+                    min_cluster_size=2,
+                    ctx_id=0,
+                    det_size=(640, 640)
+                )
+                
+                print(f"📊 [API] Результат кластеризации: {type(plan)}")
+                if isinstance(plan, dict):
+                    print(f"📊 [API] Ключи результата: {list(plan.keys())}")
+                
+                # Собираем уникальные кластеры
+                clusters_found = 0
+                if isinstance(plan, dict) and "clusters" in plan:
+                    clusters_found = len(plan["clusters"])
+                    for cluster_id in plan["clusters"].keys():
+                        all_unique_clusters.add(int(cluster_id))
+                elif isinstance(plan, dict) and "clusters_count" in plan:
+                    clusters_found = plan["clusters_count"]
+                    # Если есть clusters_count, создаем фиктивные кластеры
+                    for i in range(clusters_found):
+                        all_unique_clusters.add(i + 1)
+                
+                processed_folders += 1
+                print(f"✅ [API] Обработана папка {common_folder}, найдено кластеров: {clusters_found}")
+                
+            except Exception as e:
+                print(f"⚠️ [API] Ошибка обработки папки {common_folder}: {e}")
+                import traceback
+                traceback.print_exc()
+                continue
+        
+        # Создаем пустые папки для каждого уникального человека
+        root_dir = Path(root_path)
+        created_folders = []
+        
+        for i, cluster_id in enumerate(sorted(all_unique_clusters), 1):
+            folder_name = str(i)
+            folder_path = root_dir / folder_name
+            folder_path.mkdir(parents=True, exist_ok=True)
+            created_folders.append(folder_name)
+            print(f"📁 [API] Создана папка: {folder_path}")
+        
+        result = {
+            "success": True,
+            "processed_folders": processed_folders,
+            "unique_people": len(all_unique_clusters),
+            "created_folders": created_folders,
+            "message": f"Обработано {processed_folders} общих папок, создано {len(all_unique_clusters)} папок для уникальных людей"
+        }
+        
+        print(f"✅ [API] Обработка завершена: {result}")
+        return result
+        
+    except Exception as e:
+        print(f"❌ [API] Ошибка обработки общих фотографий: {e}")
+        raise HTTPException(status_code=500, detail=f"Ошибка обработки общих фотографий: {str(e)}")
 
 @app.get("/favicon.ico")
 async def favicon():

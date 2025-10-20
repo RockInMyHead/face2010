@@ -1,252 +1,159 @@
-# 🚀 FaceSort: Professional Face Clustering System
+# 📸 FaceSort - Кластеризация лиц в фотографиях
 
-[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://python.org)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)](https://fastapi.tiangolo.com)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+FaceSort - это современное веб-приложение для автоматической кластеризации лиц на фотографиях с использованием передовых алгоритмов машинного обучения.
 
-> **Professional face clustering with state-of-the-art computer vision and machine learning**
+## ✨ Основные возможности
 
-FaceSort is a powerful web application for automatic face clustering and photo organization. It uses advanced computer vision techniques to group photos by people with high accuracy.
+- 🔍 **Автоматическое распознавание лиц** с использованием ArcFace и InsightFace
+- 📁 **Умная кластеризация** фотографий по людям
+- 🎯 **Два алгоритма кластеризации**: стандартный и продвинутый
+- 📂 **Обработка общих папок** с автоматическим поиском
+- 🔄 **Автоматическое обновление** интерфейса в реальном времени
+- 📱 **Современный веб-интерфейс** с drag & drop
+- 📦 **Экспорт результатов** в ZIP архивы
 
-## ✨ Features
+## 🚀 Быстрый старт
 
-### 🎯 Two Clustering Modes
+### Установка
 
-#### **Standard Clustering** (Default)
-- face_recognition (dlib) + HDBSCAN
-- Fast processing, ~95% accuracy
-- Perfect for everyday use
-
-#### **Advanced Clustering** (⭐ NEW)
-- InsightFace (ArcFace) + Spectral Clustering  
-- Higher accuracy, ~98.5% precision
-- Professional-grade results
-
-### 🔬 Advanced Technology Stack
-
-| Component | Technology | Benefit |
-|-----------|------------|---------|
-| **Detection** | InsightFace SCRFD | 5 key points, face alignment |
-| **Embeddings** | ArcFace (512D) | SOTA accuracy >99% |
-| **Quality** | Blur + Size + Brightness | Filter poor quality images |
-| **TTA** | Horizontal flip | Pose invariance |
-| **Re-ranking** | k-reciprocal (k=3) | Improved similarity graph |
-| **Clustering** | Spectral (normalized cuts) | Precise boundary detection |
-| **Validation** | Centroid + outlier removal | Clean clusters |
-
-## 🚀 Quick Start
-
-### Installation
-
+1. **Клонируйте репозиторий:**
 ```bash
-# Clone the repository
-git clone https://github.com/RockInMyHead/facesort.git
+git clone https://github.com/yourusername/facesort.git
 cd facesort
-
-# Standard installation
-pip install -r requirements.txt
-
-# Advanced installation (optional)
-./install_advanced.sh  # macOS/Linux
-# or
-install_advanced.cmd   # Windows
 ```
 
-### Usage
-
+2. **Установите зависимости:**
 ```bash
-# Standard mode
-python main.py
+pip install -r requirements.txt
+```
 
-# Advanced mode
-export USE_ADVANCED_CLUSTERING=true
+3. **Запустите приложение:**
+```bash
 python main.py
+```
 
-# Open browser
+4. **Откройте браузер:**
+```
 http://localhost:8000
 ```
 
-## 📊 Performance Comparison
+## 🛠 Технологии
 
-| Parameter | Standard | Advanced |
-|-----------|----------|----------|
-| **Accuracy** | ~95% | ~98.5% |
-| **Speed (CPU)** | Fast | 2-3x slower |
-| **Speed (GPU)** | - | Comparable |
-| **Memory** | ~500MB | ~2GB |
-| **Dependencies** | Basic | Extended |
-| **Use Case** | Daily | Professional |
+### Backend
+- **FastAPI** - современный веб-фреймворк
+- **InsightFace** - распознавание лиц
+- **ArcFace** - извлечение эмбеддингов
+- **Faiss** - эффективная кластеризация
+- **OpenCV** - обработка изображений
 
-## 🎯 When to Use?
+### Frontend
+- **Vanilla JavaScript** - без фреймворков
+- **HTML5/CSS3** - современный интерфейс
+- **Drag & Drop API** - удобная навигация
+- **Fetch API** - асинхронные запросы
 
-### Standard Clustering:
-- ✅ Large photo volumes (>5000)
-- ✅ Speed over precision
-- ✅ Limited system resources
-- ✅ Daily use
+## 📊 Алгоритмы кластеризации
 
-### Advanced Clustering:
-- ✅ Critical accuracy needed
-- ✅ Complex shooting conditions
-- ✅ Professional processing
-- ✅ Medium volumes (<5000 photos)
-- ✅ GPU available
+### Стандартный алгоритм
+- Использует `face_recognition` (dlib CNN)
+- 128D эмбеддинги
+- Faiss + граф связности
+- Быстрая обработка
 
-## 📖 Documentation
+### Продвинутый алгоритм
+- InsightFace SCRFD для детекции
+- ArcFace 512D эмбеддинги
+- Test-Time Augmentation (TTA)
+- Оценка качества (размытие, размер, яркость)
+- k-reciprocal re-ranking
+- Spectral Clustering
 
-- 📘 [Quick Start Guide](QUICK_START_ADVANCED.md) - Get started in 3 minutes
-- 📗 [Advanced Clustering Guide](ADVANCED_CLUSTERING_GUIDE.md) - Detailed documentation
-- 📙 [Implementation Summary](IMPLEMENTATION_SUMMARY.md) - Technical details
-- 🧪 [Testing](test_advanced_clustering.py) - System validation
+## 🎯 Особенности
 
-## 🔧 Configuration
+### Автоматическое обновление
+- Папки обновляются каждую секунду
+- Задачи обновляются в реальном времени
+- Никаких ручных обновлений не требуется
 
-### Basic Parameters (main.py):
+### Обработка общих папок
+- Автоматический поиск папок "общие", "common", "shared"
+- Рекурсивный поиск с ограничением глубины
+- Создание пустых папок для уникальных людей
+- Подсчет реального количества фотографий
 
-```python
-# Lines 323-330
-clustering_func = functools.partial(
-    build_plan_advanced,
-    input_dir=path,
-    min_face_confidence=0.9,      # Detection threshold (0.7-0.99)
-    apply_tta=True,                # TTA on/off
-    use_gpu=False,                 # GPU on/off
-    progress_callback=progress_callback,
-    include_excluded=include_excluded
-)
+### Современный интерфейс
+- Квадратные папки 150x150px
+- Единообразные размеры всех элементов
+- Drag & Drop навигация
+- Контекстные меню
+- Модальные окна
+
+## 📁 Структура проекта
+
+```
+facesort/
+├── main.py                 # FastAPI приложение
+├── cluster_simple.py      # Алгоритмы кластеризации
+├── static/
+│   ├── index.html         # Главная страница
+│   └── app.js            # Frontend логика
+├── requirements.txt      # Зависимости Python
+├── .gitignore           # Git исключения
+└── README.md            # Документация
 ```
 
-### Advanced Parameters (cluster_advanced.py):
+## 🔧 API Endpoints
 
-```python
-# build_plan_advanced()
-min_blur_threshold=100.0,      # Blur threshold
-n_clusters=None,               # Number of clusters (None=auto)
-k_reciprocal=3,                # k for re-ranking
-verification_threshold=0.35    # Validation threshold
-```
+- `GET /` - Главная страница
+- `GET /api/drives` - Список дисков
+- `GET /api/folder` - Содержимое папки
+- `POST /api/queue/add` - Добавить в очередь
+- `POST /api/process` - Обработать очередь
+- `GET /api/tasks` - Активные задачи
+- `GET /api/image/preview` - Превью изображения
 
-## 🧪 Testing
+## 🎨 Интерфейс
 
+### Основные элементы
+- **Навигация по папкам** - квадратные кнопки 150x150px
+- **Очередь обработки** - drag & drop интерфейс
+- **Активные задачи** - реальное время обновления
+- **Кнопка "Общие"** - специальный алгоритм для общих папок
+
+### Автоматические функции
+- Обновление папок каждую секунду
+- Обновление задач каждую секунду
+- Автоматическое создание папок для людей
+- Подсчет фотографий в названиях папок
+
+## 🚀 Развертывание
+
+### Локальная разработка
 ```bash
-# Run tests
-python test_advanced_clustering.py
-
-# Expected output:
-# ✅ PASS: Imports
-# ✅ PASS: Initialization
-# ✅ PASS: Quality Assessment
-# ✅ PASS: k-reciprocal
-# ✅ PASS: Spectral Clustering
-# ✅ PASS: Integration
-# Passed: 6/6 (100.0%)
+python main.py
 ```
 
-## 📈 Performance
-
-Testing on MacBook Pro M1, 16GB RAM:
-
-| Dataset | Standard | Advanced (CPU) | Advanced (GPU) |
-|---------|----------|----------------|----------------|
-| 100 photos | 12 sec | 34 sec | 15 sec |
-| 500 photos | 68 sec | 186 sec | 78 sec |
-| 1000 photos | 2.5 min | 6.8 min | 2.8 min |
-
-## 🛠️ Architecture
-
-```
-┌─────────────────────────────────────────┐
-│         Web Interface (FastAPI)          │
-└─────────────────────────────────────────┘
-                    │
-        ┌───────────┴───────────┐
-        │                       │
-┌───────▼──────┐    ┌──────────▼────────┐
-│  cluster.py   │    │ cluster_advanced.py│
-│ (Standard)    │    │   (Advanced)      │
-└───────────────┘    └───────────────────┘
-        │                       │
-        ▼                       ▼
-┌──────────────┐    ┌──────────────────────┐
-│face_recognition│    │   InsightFace        │
-│    + HDBSCAN  │    │   + Spectral         │
-└──────────────┘    └──────────────────────┘
+### Production
+```bash
+uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
-### Components:
+## 📝 Лицензия
 
-1. **main.py** - FastAPI server, routing
-2. **cluster.py** - Standard clustering
-3. **cluster_advanced.py** - Advanced clustering
-4. **static/** - Web interface (HTML/JS)
+MIT License - см. файл LICENSE для деталей.
 
-## 🔬 Advanced Clustering Algorithm
+## 🤝 Вклад в проект
 
-```
-1. Load images
-   ↓
-2. Face detection (InsightFace SCRFD)
-   ↓
-3. Quality assessment (blur, size, brightness)
-   ↓
-4. Filtering (quality < 0.3 → discard)
-   ↓
-5. Extract embeddings (ArcFace 512D)
-   ↓
-6. TTA: flip + averaging (optional)
-   ↓
-7. L2-normalize embeddings
-   ↓
-8. Quality weighting
-   ↓
-9. Similarity matrix (cosine)
-   ↓
-10. k-reciprocal re-ranking (k=3)
-    ↓
-11. Spectral Clustering (auto n_clusters)
-    ↓
-12. Post-validation:
-    - Compute centroids
-    - Check outliers
-    - Reassign/merge
-    ↓
-13. Final clusters
-```
+1. Fork репозиторий
+2. Создайте feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit изменения (`git commit -m 'Add some AmazingFeature'`)
+4. Push в branch (`git push origin feature/AmazingFeature`)
+5. Откройте Pull Request
 
-## 🤝 Contributing
+## 📞 Поддержка
 
-Pull requests are welcome! Especially interested in:
-
-- [ ] RetinaFace detection support
-- [ ] Model ensemble (ArcFace + MagFace)
-- [ ] 5-crop TTA
-- [ ] GPU batch processing
-- [ ] Incremental clustering
-- [ ] Web UI improvements
-
-## 📝 License
-
-MIT License - Free to use
-
-## 🙏 Acknowledgments
-
-This project uses the following libraries:
-- [InsightFace](https://github.com/deepinsight/insightface) - Detection and embeddings
-- [scikit-learn](https://scikit-learn.org/) - Clustering
-- [face_recognition](https://github.com/ageitgey/face_recognition) - Base system
-- [FastAPI](https://fastapi.tiangolo.com/) - Web framework
-
-## 📞 Support
-
-If you encounter issues:
-1. Check the [documentation](ADVANCED_CLUSTERING_GUIDE.md)
-2. Run the [tests](test_advanced_clustering.py)
-3. Create an Issue with problem description
+Если у вас есть вопросы или проблемы, создайте issue в GitHub репозитории.
 
 ---
 
-**Made with ❤️ for professional face clustering**
-
-## 🌟 Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=RockInMyHead/facesort&type=Date)](https://star-history.com/#RockInMyHead/facesort&Date)
+**FaceSort** - современное решение для кластеризации лиц в фотографиях! 📸✨

@@ -333,14 +333,18 @@ def distribute_to_folders(plan: dict, base_dir: Path, cluster_start: int = 1, pr
     moved_paths = set()
 
     used_clusters = sorted({c for item in plan.get("plan", []) for c in item["cluster"]})
-    # В режиме ОБЩАЯ получаем все кластеры из данных кластеризации
-    all_clusters = set()
-    if common_mode and "clusters" in plan:
-        all_clusters = set(plan["clusters"].keys())
-        # Преобразуем строковые ключи в int
-        all_clusters = {int(k) for k in all_clusters if k.isdigit()}
-        # Объединяем с used_clusters
-        used_clusters = sorted(set(used_clusters) | all_clusters)
+    # В режиме ОБЩАЯ получаем только кластеры людей с общих фотографий
+    common_photo_clusters = set()
+    if common_mode:
+        # Находим кластеры людей, которые есть на общих фотографиях
+        for item in plan.get("plan", []):
+            src = Path(item["path"])
+            is_common_photo = any(excluded_name in str(src.parent).lower() for excluded_name in EXCLUDED_COMMON_NAMES)
+            if is_common_photo:
+                common_photo_clusters.update(item["cluster"])
+        
+        # Объединяем с used_clusters только кластеры с общих фото
+        used_clusters = sorted(set(used_clusters) | common_photo_clusters)
     
     cluster_id_map = {old: cluster_start + idx for idx, old in enumerate(used_clusters)}
 
@@ -351,9 +355,14 @@ def distribute_to_folders(plan: dict, base_dir: Path, cluster_start: int = 1, pr
 
     cluster_file_counts: Dict[int, int] = {}
     for item in plan_items:
-        clusters = [cluster_id_map[c] for c in item["cluster"]]
-        for cid in clusters:
-            cluster_file_counts[cid] = cluster_file_counts.get(cid, 0) + 1
+        src = Path(item["path"])
+        # Проверяем, является ли файл общим (находится в папке "общие")
+        is_common_photo = any(excluded_name in str(src.parent).lower() for excluded_name in EXCLUDED_COMMON_NAMES)
+        
+        if not is_common_photo:  # Считаем только НЕ общие фотографии
+            clusters = [cluster_id_map[c] for c in item["cluster"]]
+            for cid in clusters:
+                cluster_file_counts[cid] = cluster_file_counts.get(cid, 0) + 1
 
     for i, item in enumerate(plan_items):
         if progress_callback:
@@ -371,12 +380,6 @@ def distribute_to_folders(plan: dict, base_dir: Path, cluster_start: int = 1, pr
         if is_common_photo:
             # Общие фотографии НЕ перемещаем - оставляем на месте
             print(f"📌 Общая фотография оставлена: {src.name}")
-            # Создаем папки для людей с общих фотографий (пустые) только в режиме ОБЩАЯ
-            if common_mode:
-                for cid in clusters:
-                    empty_folder = base_dir / str(cid)
-                    empty_folder.mkdir(parents=True, exist_ok=True)
-                    print(f"📁 Создана пустая папка для человека с общих фото: {cid}")
             continue
 
         if len(clusters) == 1:
@@ -401,22 +404,30 @@ def distribute_to_folders(plan: dict, base_dir: Path, cluster_start: int = 1, pr
     # Переименование папок: добавляем количество файлов только для непустых папок
     if progress_callback:
         progress_callback("📝 Переименование папок с количеством файлов...", 95)
-    for cid, cnt in cluster_file_counts.items():
-        if cnt > 0:  # Только для непустых папок
-            old_folder = base_dir / str(cid)
-            new_folder = base_dir / f"{cid} ({cnt})"
-            if old_folder.exists():
+    
+    # Подсчитываем реальное количество файлов в каждой папке
+    for cid in cluster_file_counts.keys():
+        folder_path = base_dir / str(cid)
+        if folder_path.exists():
+            # Считаем реальное количество файлов в папке
+            real_count = 0
+            for file_path in folder_path.iterdir():
+                if file_path.is_file() and file_path.suffix.lower() in ['.jpg', '.jpeg', '.png', '.bmp', '.tiff']:
+                    real_count += 1
+            
+            if real_count > 0:
+                old_folder = base_dir / str(cid)
+                new_folder = base_dir / f"{cid} ({real_count})"
                 try:
                     old_folder.rename(new_folder)
-                except Exception:
-                    pass
-        else:
-            # Удаляем пустые папки
-            empty_folder = base_dir / str(cid)
-            if empty_folder.exists():
+                    print(f"📁 Переименована папка: {cid} -> {cid} ({real_count})")
+                except Exception as e:
+                    print(f"⚠️ Ошибка переименования папки {cid}: {e}")
+            else:
+                # Удаляем пустые папки
                 try:
-                    empty_folder.rmdir()
-                    print(f"🗑️ Удалена пустая папка: {empty_folder.name}")
+                    folder_path.rmdir()
+                    print(f"🗑️ Удалена пустая папка: {cid}")
                 except Exception:
                     pass
 
@@ -431,19 +442,23 @@ def distribute_to_folders(plan: dict, base_dir: Path, cluster_start: int = 1, pr
 
     # В режиме ОБЩАЯ создаем пустые папки для всех найденных кластеров + 2 дополнительные
     if common_mode:
+        # Создаем папки в родительской папке (не в папке "общие")
+        parent_dir = base_dir.parent
+        print(f"📁 Создаем папки в родительской директории: {parent_dir}")
+        
         # Создаем папки для всех найденных кластеров с использованием перенумерации
         for old_cid in used_clusters:
             new_cid = cluster_id_map[old_cid]
-            empty_folder = base_dir / str(new_cid)
+            empty_folder = parent_dir / str(new_cid)
             empty_folder.mkdir(parents=True, exist_ok=True)
-            print(f"📁 Создана пустая папка для кластера: {new_cid}")
+            print(f"📁 Создана пустая папка для кластера: {new_cid} в {parent_dir}")
         
         # Создаем 2 дополнительные пустые папки
         max_mapped_cluster_id = max(cluster_id_map.values()) if cluster_id_map else cluster_start - 1
         for i in range(1, 3):  # Создаем 2 дополнительные папки
-            extra_folder = base_dir / str(max_mapped_cluster_id + i)
+            extra_folder = parent_dir / str(max_mapped_cluster_id + i)
             extra_folder.mkdir(parents=True, exist_ok=True)
-            print(f"📁 Создана дополнительная пустая папка: {max_mapped_cluster_id + i}")
+            print(f"📁 Создана дополнительная пустая папка: {max_mapped_cluster_id + i} в {parent_dir}")
 
     return moved, copied, cluster_start + len(used_clusters)
 
@@ -457,9 +472,14 @@ EXCLUDED_COMMON_NAMES = ["общие", "общая", "common", "shared", "все
 
 def find_common_folders_recursive(group_dir: Path) -> List[Path]:
     common: List[Path] = []
+    print(f"🔍 Ищем общие папки в: {group_dir}")
     for subdir in group_dir.rglob("*"):
-        if subdir.is_dir() and any(ex in subdir.name.lower() for ex in EXCLUDED_COMMON_NAMES):
-            common.append(subdir)
+        if subdir.is_dir():
+            print(f"🔍 Проверяем папку: {subdir.name}")
+            if any(ex in subdir.name.lower() for ex in EXCLUDED_COMMON_NAMES):
+                print(f"✅ Найдена общая папка: {subdir}")
+                common.append(subdir)
+    print(f"📁 Найдено общих папок: {len(common)}")
     return common
 
 
