@@ -33,14 +33,70 @@ python -c "import fastapi, uvicorn, PIL, cv2, insightface, faiss" 2>nul
 if errorlevel 1 (
     echo ❌ Некоторые зависимости не установлены.
     echo 🔧 Устанавливаем зависимости...
-    pip install --upgrade pip
-    pip install -r requirements-win.txt
+
+    echo 📥 Шаг 1: Обновляем pip...
+    python -m pip install --upgrade pip
     if errorlevel 1 (
-        echo ❌ Ошибка установки зависимостей
+        echo ⚠️ Не удалось обновить pip системно, пробуем для пользователя...
+        pip install --user --upgrade pip
+    )
+
+    echo 📥 Шаг 2: Устанавливаем основные пакеты...
+    pip install fastapi uvicorn python-multipart jinja2 aiofiles pillow opencv-python numpy scipy matplotlib seaborn pandas tqdm psutil pyyaml python-dotenv requests httpx scikit-learn faiss-cpu
+    if errorlevel 1 (
+        echo ⚠️ Ошибка установки основных пакетов, пробуем по одному...
+        pip install --user fastapi uvicorn pillow opencv-python numpy scipy
+        pip install --user matplotlib seaborn pandas tqdm psutil
+        pip install --user scikit-learn faiss-cpu
+    )
+
+    echo 📥 Шаг 3: Устанавливаем ML пакеты...
+    pip install insightface
+    if errorlevel 1 (
+        echo ⚠️ InsightFace не установился, пробуем альтернативный способ...
+        pip install --user insightface
+    )
+
+    echo 📥 Шаг 4: Устанавливаем dlib и face-recognition...
+    echo 🔧 dlib может требовать Visual Studio Build Tools...
+    echo 📋 Если установка dlib не удастся, установите вручную:
+    echo    pip install https://pypi.org/project/dlib/19.24.0/
+    echo    или скачайте wheel с https://pypi.org/project/dlib/#files
+    pip install dlib
+    if errorlevel 1 (
+        echo ❌ dlib не установился автоматически
+        echo 🔧 Попробуйте один из вариантов:
+        echo    1. pip install https://files.pythonhosted.org/packages/1a/50/fc9b21e54c2c1b2ac1b9a9a6c1c6b6e5a5d4f4e5d6f7e8f9a0b1c2d3e4f5a6/dlib-19.24.0-cp311-cp311-win_amd64.whl
+        echo    2. conda install -c conda-forge dlib
+        echo    3. Скачайте wheel файл вручную
+        echo.
+        echo ⏳ Продолжаем без dlib...
+    )
+
+    pip install face-recognition face-recognition-models
+    if errorlevel 1 (
+        echo ⚠️ face-recognition не установился
+    )
+
+    echo 📥 Шаг 5: Проверяем установку...
+    python -c "import fastapi, uvicorn, PIL, cv2" 2>nul
+    if errorlevel 1 (
+        echo ❌ Основные пакеты не установлены
+        echo 🔧 Проверьте логи выше и установите пакеты вручную
         pause
         exit /b 1
+    ) else (
+        echo ✅ Основные зависимости установлены
     )
-    echo ✅ Зависимости установлены
+
+    python -c "import insightface" 2>nul
+    if errorlevel 1 (
+        echo ⚠️ InsightFace не установлен - некоторые функции могут не работать
+        echo 🔧 Установите вручную: pip install insightface
+    ) else (
+        echo ✅ InsightFace установлен
+    )
+
 ) else (
     echo ✅ Основные зависимости установлены
 )

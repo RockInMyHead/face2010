@@ -28,6 +28,7 @@ flake8==6.1.0
 mypy==1.7.1
 
 # Предварительно собранные для Windows
-dlib @ https://pypi.org/simple/dlib/
+# Используем wheel для dlib (если не установится, установите вручную)
+dlib
 face-recognition==1.3.0
 face-recognition-models==0.3.0
