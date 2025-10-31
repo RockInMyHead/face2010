@@ -51,10 +51,13 @@ if errorlevel 1 (
     )
 
     echo 📥 Шаг 3: Устанавливаем ML пакеты...
-    pip install insightface
+    echo 🔧 Устанавливаем InsightFace...
+    call install_insightface_windows.bat
     if errorlevel 1 (
-        echo ⚠️ InsightFace не установился, пробуем альтернативный способ...
-        pip install --user insightface
+        echo ❌ InsightFace не удалось установить
+        echo 🔧 FaceSort не сможет работать без InsightFace
+        pause
+        exit /b 1
     )
 
     echo 📥 Шаг 4: Устанавливаем dlib и face-recognition...
@@ -89,12 +92,12 @@ if errorlevel 1 (
         echo ✅ Основные зависимости установлены
     )
 
-    python -c "import insightface" 2>nul
+    python -c "import insightface; fa = insightface.app.FaceAnalysis(); fa.prepare(ctx_id=-1)" 2>nul
     if errorlevel 1 (
-        echo ⚠️ InsightFace не установлен - некоторые функции могут не работать
-        echo 🔧 Установите вручную: pip install insightface
+        echo ❌ InsightFace не работает корректно
+        echo 🔧 Запустите install_insightface_windows.bat отдельно
     ) else (
-        echo ✅ InsightFace установлен
+        echo ✅ InsightFace полностью работает
     )
 
 ) else (
