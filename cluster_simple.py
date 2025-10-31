@@ -383,15 +383,19 @@ def distribute_to_folders(plan: dict, base_dir: Path, cluster_start: int = 1, pr
             continue
 
         if len(clusters) == 1:
-            dst = base_dir / f"{clusters[0]}" / src.name
+            # Определяем папку назначения: берем родительскую папку файла
+            parent_folder = src.parent
+            dst = parent_folder / f"{clusters[0]}" / src.name
             dst.parent.mkdir(parents=True, exist_ok=True)
             if src.resolve() != dst.resolve():
                 shutil.move(str(src), str(dst))
                 moved += 1
                 moved_paths.add(src.parent)
         else:
+            # Для мульти-кластерных файлов также используем родительскую папку
+            parent_folder = src.parent
             for cid in clusters:
-                dst = base_dir / f"{cid}" / src.name
+                dst = parent_folder / f"{cid}" / src.name
                 dst.parent.mkdir(parents=True, exist_ok=True)
                 if src.resolve() != dst.resolve():
                     shutil.copy2(str(src), str(dst))
@@ -405,31 +409,39 @@ def distribute_to_folders(plan: dict, base_dir: Path, cluster_start: int = 1, pr
     if progress_callback:
         progress_callback("📝 Переименование папок с количеством файлов...", 95)
     
-    # Подсчитываем реальное количество файлов в каждой папке
-    for cid in cluster_file_counts.keys():
-        folder_path = base_dir / str(cid)
-        if folder_path.exists():
-            # Считаем реальное количество файлов в папке
-            real_count = 0
-            for file_path in folder_path.iterdir():
-                if file_path.is_file() and file_path.suffix.lower() in ['.jpg', '.jpeg', '.png', '.bmp', '.tiff']:
-                    real_count += 1
-            
-            if real_count > 0:
-                old_folder = base_dir / str(cid)
-                new_folder = base_dir / f"{cid} ({real_count})"
-                try:
-                    old_folder.rename(new_folder)
-                    print(f"📁 Переименована папка: {cid} -> {cid} ({real_count})")
-                except Exception as e:
-                    print(f"⚠️ Ошибка переименования папки {cid}: {e}")
-            else:
-                # Удаляем пустые папки
-                try:
-                    folder_path.rmdir()
-                    print(f"🗑️ Удалена пустая папка: {cid}")
-                except Exception:
-                    pass
+    # Собираем все уникальные родительские папки из перемещенных файлов
+    parent_folders = set()
+    for item in plan_items:
+        src = Path(item["path"])
+        if src.parent.exists():
+            parent_folders.add(src.parent)
+    
+    # Подсчитываем реальное количество файлов в каждой папке в каждой родительской директории
+    for parent_folder in parent_folders:
+        for cid in cluster_file_counts.keys():
+            folder_path = parent_folder / str(cid)
+            if folder_path.exists():
+                # Считаем реальное количество файлов в папке
+                real_count = 0
+                for file_path in folder_path.iterdir():
+                    if file_path.is_file() and file_path.suffix.lower() in ['.jpg', '.jpeg', '.png', '.bmp', '.tiff']:
+                        real_count += 1
+                
+                if real_count > 0:
+                    old_folder = parent_folder / str(cid)
+                    new_folder = parent_folder / f"{cid} ({real_count})"
+                    try:
+                        old_folder.rename(new_folder)
+                        print(f"📁 Переименована папка: {old_folder} -> {cid} ({real_count})")
+                    except Exception as e:
+                        print(f"⚠️ Ошибка переименования папки {cid}: {e}")
+                else:
+                    # Удаляем пустые папки
+                    try:
+                        folder_path.rmdir()
+                        print(f"🗑️ Удалена пустая папка: {folder_path}")
+                    except Exception:
+                        pass
 
     # Чистим пустые каталоги
     if progress_callback:
