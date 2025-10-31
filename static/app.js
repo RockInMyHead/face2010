@@ -938,15 +938,12 @@ class PhotoClusterApp {
             return;
         }
         
-        // Фильтруем только активные задачи для отображения
-        const activeTasks = (tasks || []).filter(task => 
-            task.status === 'running' || task.status === 'pending'
-        );
-        
-        if (activeTasks.length === 0) {
+        // Показываем и активные, и завершенные/с ошибкой задачи (последние сверху)
+        const allTasks = Array.isArray(tasks) ? tasks.slice() : [];
+        if (allTasks.length === 0) {
             this.tasksList.innerHTML = `
                 <p style="text-align: center; color: #666; padding: 40px 0;">
-                    Активных задач нет
+                    Задач нет
                 </p>
             `;
             return;
@@ -954,13 +951,18 @@ class PhotoClusterApp {
 
         this.tasksList.innerHTML = '';
         
-        // Сортируем только активные задачи
-        activeTasks.sort((a, b) => {
-            const order = { 'running': 0, 'pending': 1 };
-            return order[a.status] - order[b.status];
+        // Порядок: running → pending → error → completed, затем по времени создания (новые сверху)
+        const statusOrder = { running: 0, pending: 1, error: 2, completed: 3 };
+        allTasks.sort((a, b) => {
+            const byStatus = (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99);
+            if (byStatus !== 0) return byStatus;
+            return (b.created_at || 0) - (a.created_at || 0);
         });
 
-        activeTasks.forEach(task => {
+        // Ограничим отображение до 10 последних задач, чтобы не раздувать список
+        const tasksToShow = allTasks.slice(0, 10);
+
+        tasksToShow.forEach(task => {
             const taskEl = document.createElement('div');
             taskEl.className = `task-item ${task.status}`;
             
@@ -992,6 +994,11 @@ class PhotoClusterApp {
                             <div class="stat-label">Без лиц</div>
                         </div>
                     </div>
+                `;
+            } else if (task.status === 'error') {
+                const errText = task.error || task.message || 'Неизвестная ошибка';
+                resultHtml = `
+                    <div class="progress-details" style="color:#c0392b;">${errText}</div>
                 `;
             }
 
