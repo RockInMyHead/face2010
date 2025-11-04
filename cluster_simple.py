@@ -383,23 +383,38 @@ def distribute_to_folders(plan: dict, base_dir: Path, cluster_start: int = 1, pr
             continue
 
         if len(clusters) == 1:
-            # Определяем папку назначения: берем родительскую папку файла
-            parent_folder = src.parent
-            dst = parent_folder / f"{clusters[0]}" / src.name
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            if src.resolve() != dst.resolve():
-                shutil.move(str(src), str(dst))
-                moved += 1
-                moved_paths.add(src.parent)
-        else:
-            # Для мульти-кластерных файлов также используем родительскую папку
-            parent_folder = src.parent
-            for cid in clusters:
-                dst = parent_folder / f"{cid}" / src.name
+            # Определяем папку назначения
+            if common_mode:
+                # В режиме ОБЩИЕ создаем папки в base_dir (родительской директории общей папки)
+                dst = base_dir / f"{clusters[0]}" / src.name
+            else:
+                # Стандартный режим: берем родительскую папку файла
+                parent_folder = src.parent
+                dst = parent_folder / f"{clusters[0]}" / src.name
                 dst.parent.mkdir(parents=True, exist_ok=True)
                 if src.resolve() != dst.resolve():
-                    shutil.copy2(str(src), str(dst))
-                    copied += 1
+                    shutil.move(str(src), str(dst))
+                    moved += 1
+                    moved_paths.add(src.parent)
+        else:
+            # Для мульти-кластерных файлов
+            if common_mode:
+                # В режиме ОБЩИЕ создаем папки в base_dir
+                for cid in clusters:
+                    dst = base_dir / f"{cid}" / src.name
+                    dst.parent.mkdir(parents=True, exist_ok=True)
+                    if src.resolve() != dst.resolve():
+                        shutil.copy2(str(src), str(dst))
+                        copied += 1
+            else:
+                # Стандартный режим: используем родительскую папку
+                parent_folder = src.parent
+                for cid in clusters:
+                    dst = parent_folder / f"{cid}" / src.name
+                    dst.parent.mkdir(parents=True, exist_ok=True)
+                    if src.resolve() != dst.resolve():
+                        shutil.copy2(str(src), str(dst))
+                        copied += 1
             try:
                 src.unlink()
             except Exception:
@@ -409,39 +424,60 @@ def distribute_to_folders(plan: dict, base_dir: Path, cluster_start: int = 1, pr
     if progress_callback:
         progress_callback("📝 Переименование папок с количеством файлов...", 95)
     
-    # Собираем все уникальные родительские папки из перемещенных файлов
-    parent_folders = set()
-    for item in plan_items:
-        src = Path(item["path"])
-        if src.parent.exists():
-            parent_folders.add(src.parent)
-    
-    # Подсчитываем реальное количество файлов в каждой папке в каждой родительской директории
-    for parent_folder in parent_folders:
+    if common_mode:
+        # В режиме ОБЩИЕ папки создаются в base_dir, проверяем только base_dir
         for cid in cluster_file_counts.keys():
-            folder_path = parent_folder / str(cid)
+            folder_path = base_dir / str(cid)
             if folder_path.exists():
                 # Считаем реальное количество файлов в папке
                 real_count = 0
                 for file_path in folder_path.iterdir():
                     if file_path.is_file() and file_path.suffix.lower() in ['.jpg', '.jpeg', '.png', '.bmp', '.tiff']:
                         real_count += 1
-                
+
                 if real_count > 0:
-                    old_folder = parent_folder / str(cid)
-                    new_folder = parent_folder / f"{cid} ({real_count})"
+                    old_folder = base_dir / str(cid)
+                    new_folder = base_dir / f"{cid} ({real_count})"
                     try:
                         old_folder.rename(new_folder)
                         print(f"📁 Переименована папка: {old_folder} -> {cid} ({real_count})")
                     except Exception as e:
                         print(f"⚠️ Ошибка переименования папки {cid}: {e}")
-                else:
-                    # Удаляем пустые папки
-                    try:
-                        folder_path.rmdir()
-                        print(f"🗑️ Удалена пустая папка: {folder_path}")
-                    except Exception:
-                        pass
+                # В режиме ОБЩИЕ не удаляем пустые папки - они нужны для всех детей
+    else:
+        # Стандартный режим: собираем все уникальные родительские папки из перемещенных файлов
+        parent_folders = set()
+        for item in plan_items:
+            src = Path(item["path"])
+            if src.parent.exists():
+                parent_folders.add(src.parent)
+
+        # Подсчитываем реальное количество файлов в каждой папке в каждой родительской директории
+        for parent_folder in parent_folders:
+            for cid in cluster_file_counts.keys():
+                folder_path = parent_folder / str(cid)
+                if folder_path.exists():
+                    # Считаем реальное количество файлов в папке
+                    real_count = 0
+                    for file_path in folder_path.iterdir():
+                        if file_path.is_file() and file_path.suffix.lower() in ['.jpg', '.jpeg', '.png', '.bmp', '.tiff']:
+                            real_count += 1
+
+                    if real_count > 0:
+                        old_folder = parent_folder / str(cid)
+                        new_folder = parent_folder / f"{cid} ({real_count})"
+                        try:
+                            old_folder.rename(new_folder)
+                            print(f"📁 Переименована папка: {old_folder} -> {cid} ({real_count})")
+                        except Exception as e:
+                            print(f"⚠️ Ошибка переименования папки {cid}: {e}")
+                    else:
+                        # Удаляем пустые папки
+                        try:
+                            folder_path.rmdir()
+                            print(f"🗑️ Удалена пустая папка: {folder_path}")
+                        except Exception:
+                            pass
 
     # Чистим пустые каталоги
     if progress_callback:
@@ -452,25 +488,6 @@ def distribute_to_folders(plan: dict, base_dir: Path, cluster_start: int = 1, pr
         except Exception:
             pass
 
-    # В режиме ОБЩАЯ создаем пустые папки для всех найденных кластеров + 2 дополнительные
-    if common_mode:
-        # Создаем папки в родительской папке (не в папке "общие")
-        parent_dir = base_dir.parent
-        print(f"📁 Создаем папки в родительской директории: {parent_dir}")
-        
-        # Создаем папки для всех найденных кластеров с использованием перенумерации
-        for old_cid in used_clusters:
-            new_cid = cluster_id_map[old_cid]
-            empty_folder = parent_dir / str(new_cid)
-            empty_folder.mkdir(parents=True, exist_ok=True)
-            print(f"📁 Создана пустая папка для кластера: {new_cid} в {parent_dir}")
-        
-        # Создаем 2 дополнительные пустые папки
-        max_mapped_cluster_id = max(cluster_id_map.values()) if cluster_id_map else cluster_start - 1
-        for i in range(1, 3):  # Создаем 2 дополнительные папки
-            extra_folder = parent_dir / str(max_mapped_cluster_id + i)
-            extra_folder.mkdir(parents=True, exist_ok=True)
-            print(f"📁 Создана дополнительная пустая папка: {max_mapped_cluster_id + i} в {parent_dir}")
 
     return moved, copied, cluster_start + len(used_clusters)
 
@@ -498,14 +515,45 @@ def find_common_folders_recursive(group_dir: Path) -> List[Path]:
 def process_common_folder_at_level(common_dir: Path, progress_callback: ProgressCB = None,
                                    sim_threshold: float = 0.60, min_cluster_size: int = 2,
                                    ctx_id: int = 0, det_size: Tuple[int, int] = (640, 640)) -> Tuple[int, int]:
-    """Обработка «общих» папок: раскладываем лица по подпапкам внутри самой «общей».
-    Например: common/ → common/1 (...), common/2 (...)
+    """Обработка «общих» папок: создаем папки для каждого ребенка в родительской директории общей папки.
+    Например: Младшая/общие/ → Младшая/1/, Младшая/2/, ... + 2 пустые папки
     Возвращает (moved, copied).
     """
     data = build_plan_pro(common_dir, progress_callback=progress_callback,
                           sim_threshold=sim_threshold, min_cluster_size=min_cluster_size,
                           ctx_id=ctx_id, det_size=det_size)
-    moved, copied, _ = distribute_to_folders(data, common_dir, cluster_start=1, progress_callback=progress_callback, common_mode=True)
+
+    # Создаем папки в родительской директории общей папки
+    parent_dir = common_dir.parent
+
+    # Получаем все уникальные кластеры
+    used_clusters = sorted({c for item in data.get("plan", []) for c in item["cluster"]})
+    common_photo_clusters = set()
+    # Находим кластеры людей, которые есть на общих фотографиях
+    for item in data.get("plan", []):
+        src = Path(item["path"])
+        is_common_photo = any(excluded_name in str(src.parent).lower() for excluded_name in EXCLUDED_COMMON_NAMES)
+        if is_common_photo:
+            common_photo_clusters.update(item["cluster"])
+
+    # Объединяем кластеры
+    all_clusters = sorted(set(used_clusters) | common_photo_clusters)
+
+    # Создаем папки для каждого кластера в родительской директории
+    for i, cluster_id in enumerate(all_clusters, 1):
+        folder_path = parent_dir / str(i)
+        folder_path.mkdir(parents=True, exist_ok=True)
+        print(f"📁 Создана папка для ребенка {i}: {folder_path}")
+
+    # Создаем две дополнительные пустые папки
+    next_folder_id = len(all_clusters) + 1
+    for i in range(2):
+        folder_path = parent_dir / str(next_folder_id + i)
+        folder_path.mkdir(parents=True, exist_ok=True)
+        print(f"📁 Создана дополнительная пустая папка {next_folder_id + i}: {folder_path}")
+
+    # Распределяем файлы в родительскую директорию
+    moved, copied, _ = distribute_to_folders(data, parent_dir, cluster_start=1, progress_callback=progress_callback, common_mode=True)
     return moved, copied
 
 
